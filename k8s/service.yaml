@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mandelbrot-service
+spec:
+  # TODO: Set the service type that provisions an external IP.
+  type: REPLACE_ME
+
+  selector:
+    app: mandelbrot
+
+  ports:
+    # TODO: Set the external port (what clients connect to) and
+    # the target port (what your container listens on).
+    - port: REPLACE_ME
+      targetPort: REPLACE_ME

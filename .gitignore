@@ -1,0 +1,3 @@
+node_modules/
+public/mandelbrot.js
+public/mandelbrot.wasm

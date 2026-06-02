@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mandelbrot Explorer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Mandelbrot Explorer</h1>
+            <div id="controls">
+                <button id="reset-btn">Reset View</button>
+                <span id="info">Click to zoom in &middot; Right-click to zoom out</span>
+            </div>
+        </header>
+        <div id="canvas-container">
+            <canvas id="fractal-canvas"></canvas>
+        </div>
+        <footer>
+            <div id="status">
+                <span id="coordinates">Center: (-0.5000, 0.0000) | Zoom: 1x</span>
+                <span id="render-time"></span>
+            </div>
+        </footer>
+    </div>
+    <script src="mandelbrot.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
