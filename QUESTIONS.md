@@ -76,9 +76,24 @@ Run `kubectl get pods -o wide` and paste the output below. Which nodes are your 
 **Output:**
 
 ```
+NAME                                   READY   STATUS    RESTARTS   AGE     IP          NODE                                                NOMINATED NODE   READINESS GATES
+mandelbrot-deployment-ddd455b4-2xs74   1/1     Running   0          5m51s   10.8.0.6    gke-mandelbrot-cluster-default-pool-40bfc990-0s4h   <none>           <none>
+mandelbrot-deployment-ddd455b4-rszms   1/1     Running   0          5m48s   10.8.0.7    gke-mandelbrot-cluster-default-pool-40bfc990-0s4h   <none>           <none>
+mandelbrot-deployment-ddd455b4-xj9lj   1/1     Running   0          5m59s   10.8.1.13   gke-mandelbrot-cluster-default-pool-40bfc990-mnp7   <none>           <none>
 ```
 
-**Answer:**
+**Answer:** The 3 pods are spread across both nodes in the cluster: `...2xs74` and
+`...rszms` run on node `...40bfc990-0s4h`, and `...xj9lj` runs on node `...40bfc990-mnp7`.
+Kubernetes spreads replicas across nodes rather than stacking them on one for **resilience
+and balance**. If all 3 pods sat on a single node and that node failed (or was drained,
+rebooted, or ran out of resources), the entire app would go down at once; spreading them
+means a single node failure takes out at most part of the deployment while the Service keeps
+routing to the survivors on the other node. It also balances CPU/memory load across nodes so
+no single machine is overloaded. The scheduler does this by scoring candidate nodes — it
+factors in each node's available resources (our pods' CPU/memory `requests`) and a
+spreading preference that favors placing replicas of the same Deployment on different nodes.
+(They aren't perfectly 1-1-1 here only because there are 3 pods and 2 nodes, so one node
+necessarily holds two.)
 
 ---
 
@@ -89,9 +104,22 @@ Run `curl http://<YOUR-EXTERNAL-IP>/health` at least five times and paste the re
 **Responses:**
 
 ```
+{"status":"ok","hostname":"mandelbrot-deployment-6bf95694c4-2qz2t"}
+{"status":"ok","hostname":"mandelbrot-deployment-ddd455b4-2xs74"}
+{"status":"ok","hostname":"mandelbrot-deployment-ddd455b4-xj9lj"}
+{"status":"ok","hostname":"mandelbrot-deployment-ddd455b4-xj9lj"}
+{"status":"ok","hostname":"mandelbrot-deployment-ddd455b4-2xs74"}
 ```
 
-**Answer:**
+**Answer:** The `hostname` field changes between requests — across these five curls it
+came back as three different values (`...2qz2t`, `...2xs74`, `...xj9lj`). Each hostname is
+the name of the pod that served that request: the server calls `os.hostname()`, and inside
+a container that resolves to the pod name. Since the same external IP returns different pod
+names, the LoadBalancer Service is spreading incoming requests across all the backing pods
+(matched by the `app: mandelbrot` selector) rather than pinning traffic to one. It does not
+strictly rotate 1-2-3-1-2-3 — distribution is effectively random/per-connection (kube-proxy
+load-balances across the Service's healthy endpoints), so you see repeats like `xj9lj` twice,
+but over many requests traffic lands on every replica.
 
 ---
 
@@ -108,14 +136,31 @@ Immediately run `kubectl get pods` and paste the output. Then wait 30 seconds an
 **Output (immediately after delete):**
 
 ```
+NAME                                     READY   STATUS              RESTARTS   AGE
+mandelbrot-deployment-6bf95694c4-zkvcv   0/1     Pending             0          32s
+mandelbrot-deployment-ddd455b4-2xs74     1/1     Running             0          2m27s
+mandelbrot-deployment-ddd455b4-rszms     0/1     ContainerCreating   0          2m24s
+mandelbrot-deployment-ddd455b4-xj9lj     1/1     Running             0          2m35s
 ```
 
 **Output (30 seconds later):**
 
 ```
+NAME                                   READY   STATUS    RESTARTS   AGE
+mandelbrot-deployment-ddd455b4-2xs74   1/1     Running   0          2m57s
+mandelbrot-deployment-ddd455b4-rszms   1/1     Running   0          2m54s
+mandelbrot-deployment-ddd455b4-xj9lj   1/1     Running   0          3m5s
 ```
 
-**Answer:**
+**Answer:** Deleting a pod dropped the number of running replicas below the desired count
+of 3, and Kubernetes immediately created a replacement (visible right after the delete as a
+brand-new pod coming up `Pending` / `ContainerCreating`). Within ~30 seconds the deployment
+was back to 3/3 `Running`. This is the Deployment controller's reconciliation loop at work:
+the Deployment declares a desired state (`replicas: 3`) and, through its ReplicaSet, the
+controller continuously compares desired vs. actual and acts to close any gap. When a pod
+disappears, actual (2) < desired (3), so it schedules a new pod to restore the count — no
+manual intervention needed. You manage the declared state, not individual pods, and the
+controller self-heals the deployment back to it.
 
 ---
 

@@ -13,7 +13,7 @@ export const options = {
 
 // TODO: Replace this with your service's external IP.
 // Run `kubectl get service mandelbrot-service` and copy the EXTERNAL-IP.
-const BASE_URL = "http://<YOUR-EXTERNAL-IP>";
+const BASE_URL = "http://8.231.200.227";
 
 // TODO: Implement the default function that k6 calls repeatedly for each
 // virtual user.
