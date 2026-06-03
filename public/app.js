@@ -15,7 +15,8 @@ let wasmModule = null;
 // that resolves to the initialized module object. Store the result in the
 // wasmModule variable declared above, then draw the fractal.
 async function initWasm() {
-    // YOUR CODE HERE
+    wasmModule = await createMandelbrotModule();
+    render();
 }
 
 // TODO: Render the Mandelbrot set to the canvas using the WASM module.
@@ -45,7 +46,27 @@ function render() {
 
     const start = performance.now();
 
-    // YOUR CODE HERE
+    // 1. Allocate an RGBA pixel buffer in WASM linear memory. The returned
+    //    pointer is an integer offset into that memory.
+    const bufferPtr = wasmModule._create_buffer(width, height);
+
+    // 2. Fill the buffer with the Mandelbrot computation.
+    wasmModule._compute_mandelbrot(width, height, centerX, centerY, zoom, MAX_ITER);
+
+    // 3. Create a JS view of the pixel data living in WASM memory. We read the
+    //    HEAPU8.buffer fresh here because ALLOW_MEMORY_GROWTH can replace the
+    //    underlying ArrayBuffer when the buffer is allocated above.
+    const pixels = new Uint8ClampedArray(
+        wasmModule.HEAPU8.buffer, bufferPtr, width * height * 4
+    );
+
+    // 4. Draw the pixels to the canvas.
+    const imageData = new ImageData(pixels, width, height);
+    ctx.putImageData(imageData, 0, 0);
+
+    // 5. Free the WASM buffer and refresh the coordinate readout.
+    wasmModule._free_buffer();
+    updateStatus();
 
     const elapsed = performance.now() - start;
     document.getElementById("render-time").textContent =

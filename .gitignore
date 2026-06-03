@@ -1,3 +1,8 @@
 node_modules/
+emsdk/
 public/mandelbrot.js
 public/mandelbrot.wasm
+.DS_Store
+.claude
+dist/
+package-lock.json
