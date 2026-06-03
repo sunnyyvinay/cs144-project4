@@ -47,10 +47,13 @@ spec:
             # "requests" is the minimum amount of resources guaranteed to this container.
             # The Kubernetes scheduler uses these values to decide which node to place the pod on.
             requests:
-              # 250 millicores = 25% of one CPU core
-              cpu: "250m"
-              # 256 mebibytes of RAM
-              memory: "256Mi"
+              # 100 millicores = 10% of one CPU core.
+              # Lowered from 250m so all 3 replicas fit on the 2 e2-small
+              # nodes alongside GKE's system DaemonSets (250m left 2 pods
+              # stuck Pending with "Insufficient cpu").
+              cpu: "100m"
+              # 128 mebibytes of RAM
+              memory: "128Mi"
             # "limits" is the maximum amount of resources this container can use.
             # If the container exceeds the memory limit, it is killed (OOMKilled).
             # If it exceeds the CPU limit, it is throttled.
