@@ -1,9 +1,3 @@
-**Academic Integrity Policy:**
-- **You may use AI to help understand WebAssembly, Docker, and Kubernetes concepts.**
-- **You may use AI to help with your Kubernetes YAML.**
-- **You may not use AI to write the Dockerfile or JavaScript WASM loading code.**
-- **Using AI for anything else not listed above is prohibited.**
-
 # Project 4: Mandelbrot Explorer
 
 A fractal visualization app powered by WebAssembly, deployed on Google Kubernetes Engine.

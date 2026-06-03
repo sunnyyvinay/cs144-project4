@@ -57,7 +57,15 @@ read the bytes WASM wrote without copying them.
 
 In your Dockerfile, you copied `package.json` and ran `npm install` before copying the rest of your source code. Suppose you reversed this and copied all files first, then ran `npm install`. What would happen to your build times as you iterate on your code? Why?
 
-**Answer:**
+**Answer:** Build times would get much worse on every iteration. Docker caches each
+instruction as a layer and reuses it only if that step's inputs are unchanged; once a
+layer is invalidated, every layer after it is rebuilt too. By copying only `package.json`
+(and the lockfile) first and installing before the `COPY . .` of the source, the
+expensive `npm ci` layer's input is just the manifest — so editing application code
+leaves it untouched and Docker reuses the cached `node_modules` layer, making rebuilds
+nearly instant. If you reversed the order and copied all files before installing, any
+source change would invalidate the `COPY` layer and force `npm ci` to re-download and
+reinstall every dependency from scratch on each build — slow and wasteful.
 
 ---
 
