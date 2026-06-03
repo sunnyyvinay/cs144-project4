@@ -32,10 +32,9 @@ function mandelbrotJS(cx, cy, maxIter) {
 **Explanation:** For this default viewport the two are nearly equal once warm. WASM is
 validated and ahead-of-time compiled from a statically-typed bytecode straight to
 machine code, so it runs at predictable near-native speed with no warmup. JS must be
-parsed, interpreted, then JIT-compiled at runtime after the engine profiles it (and
-can deoptimize if types shift). Because this loop is just tight `f64` arithmetic with
-no objects or GC, a modern JIT (V8) optimizes it almost as well as WASM, so steady-state
-times converge. WASM's edge shows up elsewhere: no JIT warmup (faster first/cold render),
+parsed, interpreted, then JIT-compiled at runtime after the engine profiles it. Because this loop is just tight arithmetic with
+no objects or GC, a modern JIT optimizes it almost as well as WASM, so steady-state
+times converge. With WASM, we get no JIT warmup (faster first/cold render),
 consistent timing, and larger gaps in weaker engines or on code that defeats the JIT.
 
 ---
@@ -44,11 +43,10 @@ consistent timing, and larger gaps in weaker engines or on code that defeats the
 
 When you call `wasmModule._create_buffer(width, height)`, it returns a number (e.g. `5243024`). What does this number represent? Why can't you use it directly as a JavaScript array — what additional step do you need to take to read the pixel data, and why?
 
-**Answer:** It's a pointer — a byte offset into the WASM module's linear memory (a single
-`ArrayBuffer`), not a JS object reference. You can't index it directly because JS has no
+**Answer:** It's a pointer — a byte offset into WASM's linear memory, not a JS object reference. You can't index it directly because JS has no
 handle to that raw memory through the number alone. To read the pixels you create a typed-
-array *view* over the module's memory at that offset — e.g.
-`new Uint8ClampedArray(wasmModule.HEAPU8.buffer, ptr, width * height * 4)` — which lets JS
+array view over the module's memory at that offset like
+`new Uint8ClampedArray(wasmModule.HEAPU8.buffer, ptr, width * height * 4)` which lets JS
 read the bytes WASM wrote without copying them.
 
 ---
@@ -58,14 +56,13 @@ read the bytes WASM wrote without copying them.
 In your Dockerfile, you copied `package.json` and ran `npm install` before copying the rest of your source code. Suppose you reversed this and copied all files first, then ran `npm install`. What would happen to your build times as you iterate on your code? Why?
 
 **Answer:** Build times would get much worse on every iteration. Docker caches each
-instruction as a layer and reuses it only if that step's inputs are unchanged; once a
-layer is invalidated, every layer after it is rebuilt too. By copying only `package.json`
-(and the lockfile) first and installing before the `COPY . .` of the source, the
-expensive `npm ci` layer's input is just the manifest — so editing application code
+instruction as a layer and reuses it only if that step's inputs are unchanged. Once a
+layer is invalidated, every layer after it is rebuilt too. By copying only `package.json` first and installing before the `COPY . .` of the source, the
+expensive `npm ci` layer's input is just the manifest so editing application code
 leaves it untouched and Docker reuses the cached `node_modules` layer, making rebuilds
 nearly instant. If you reversed the order and copied all files before installing, any
 source change would invalidate the `COPY` layer and force `npm ci` to re-download and
-reinstall every dependency from scratch on each build — slow and wasteful.
+reinstall every dependency from scratch on each build which is a waste.
 
 ---
 
@@ -84,16 +81,12 @@ mandelbrot-deployment-ddd455b4-xj9lj   1/1     Running   0          5m59s   10.8
 
 **Answer:** The 3 pods are spread across both nodes in the cluster: `...2xs74` and
 `...rszms` run on node `...40bfc990-0s4h`, and `...xj9lj` runs on node `...40bfc990-mnp7`.
-Kubernetes spreads replicas across nodes rather than stacking them on one for **resilience
-and balance**. If all 3 pods sat on a single node and that node failed (or was drained,
-rebooted, or ran out of resources), the entire app would go down at once; spreading them
+Kubernetes spreads replicas across nodes rather than stacking them on one for resilience
+and balance. If all 3 pods sat on a single node and that node failed, the entire app would go down at once. Spreading them
 means a single node failure takes out at most part of the deployment while the Service keeps
-routing to the survivors on the other node. It also balances CPU/memory load across nodes so
-no single machine is overloaded. The scheduler does this by scoring candidate nodes — it
-factors in each node's available resources (our pods' CPU/memory `requests`) and a
+routing to the survivors on the other node. It also balances load across nodes so
+no single machine is overloaded. The scheduler does this by scoring candidate nodes by consideringeach node's available resources and a
 spreading preference that favors placing replicas of the same Deployment on different nodes.
-(They aren't perfectly 1-1-1 here only because there are 3 pods and 2 nodes, so one node
-necessarily holds two.)
 
 ---
 
@@ -111,15 +104,12 @@ Run `curl http://<YOUR-EXTERNAL-IP>/health` at least five times and paste the re
 {"status":"ok","hostname":"mandelbrot-deployment-ddd455b4-2xs74"}
 ```
 
-**Answer:** The `hostname` field changes between requests — across these five curls it
-came back as three different values (`...2qz2t`, `...2xs74`, `...xj9lj`). Each hostname is
+**Answer:** The `hostname` field changes between requests across these five curls. Each hostname is
 the name of the pod that served that request: the server calls `os.hostname()`, and inside
 a container that resolves to the pod name. Since the same external IP returns different pod
 names, the LoadBalancer Service is spreading incoming requests across all the backing pods
-(matched by the `app: mandelbrot` selector) rather than pinning traffic to one. It does not
-strictly rotate 1-2-3-1-2-3 — distribution is effectively random/per-connection (kube-proxy
-load-balances across the Service's healthy endpoints), so you see repeats like `xj9lj` twice,
-but over many requests traffic lands on every replica.
+rather than pinning traffic to one. Distribution is effectively random/per-connection since kube-proxy
+load-balances across the Service's healthy endpoints.
 
 ---
 
@@ -153,14 +143,11 @@ mandelbrot-deployment-ddd455b4-xj9lj   1/1     Running   0          3m5s
 ```
 
 **Answer:** Deleting a pod dropped the number of running replicas below the desired count
-of 3, and Kubernetes immediately created a replacement (visible right after the delete as a
-brand-new pod coming up `Pending` / `ContainerCreating`). Within ~30 seconds the deployment
-was back to 3/3 `Running`. This is the Deployment controller's reconciliation loop at work:
-the Deployment declares a desired state (`replicas: 3`) and, through its ReplicaSet, the
-controller continuously compares desired vs. actual and acts to close any gap. When a pod
-disappears, actual (2) < desired (3), so it schedules a new pod to restore the count — no
-manual intervention needed. You manage the declared state, not individual pods, and the
-controller self-heals the deployment back to it.
+of 3, and Kubernetes immediately created a replacement. Within 30 seconds the deployment
+was back to 3/3 `Running`. This is because of the Deployment controller's reconciliation loop.
+The Deployment declares a desired state and, through its ReplicaSet, the
+controller continuously compares desired vs actual and acts to close any gap. When a pod
+disappears, actual (2) < desired (3), so it schedules a new pod to restore the count.
 
 ---
 
@@ -199,15 +186,12 @@ Run your k6 load test (`k6 run k8s/loadtest.js`) and paste the summary output be
 completed **64,768 requests** over 30 s (~2,159 req/s), with a 0% failure rate and all
 129,536 checks passing.
 
-Scaling from 3 to 6 replicas would **not** meaningfully decrease the average response time
-here. Adding replicas only helps when the existing pods are the bottleneck — i.e. saturated
-on CPU so requests queue behind busy workers. That isn't the case for this workload: `/health`
-is a trivial handler (read hostname, return a tiny JSON), so each request is served in a few
-milliseconds and the pods sit far below their CPU `limits` (you can confirm with
-`kubectl top pods` — usage stays low during the test). With only 20 virtual users, 3 pods
+Scaling from 3 to 6 replicas would NOT meaningfully decrease the average response time
+here. Adding replicas only helps when the existing pods are the bottleneck. That isn't the case for this workload as `/health`
+is a trivial handler, so each request is served in a few
+milliseconds and the pods sit far below their CPU limits. With only 20 virtual users, 3 pods
 already have plenty of spare capacity, so the ~9 ms latency is dominated by network round-trip
-and load-balancer overhead, not pod processing. Doubling the replicas just adds idle capacity;
-it raises the *throughput ceiling* (how many concurrent requests you could handle before
-saturating) but leaves per-request latency essentially unchanged. Latency would only drop from
-more replicas if you also drove far more load — enough that 3 pods became CPU-bound and started
-queueing.
+and load-balancer overhead, not pod processing. Doubling the replicas just adds idle capacity.
+It raises the number of concurrent requests you could handle before
+saturating but leaves per-request latency unchanged. Latency would only drop from
+more replicas if you also drove more load.
