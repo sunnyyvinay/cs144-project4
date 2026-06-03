@@ -34,13 +34,10 @@ spec:
           #   Always       — pull from the registry every time a pod starts
           #   IfNotPresent — only pull if the image isn't already on the node
           #   Never        — never pull; only use a local image
-          # Minikube (local testing): local image name + Never (below).
-          # For GKE, swap to your Artifact Registry URL (Part 3B) and set
-          # imagePullPolicy to Always, e.g.
-          #   image: us-west1-docker.pkg.dev/PROJECT_ID/mandelbrot-repo/mandelbrot:v1
-          #   imagePullPolicy: Always
-          image: mandelbrot
-          imagePullPolicy: Never
+          # GKE: pull from Artifact Registry. (For local minikube this was
+          # image: mandelbrot / imagePullPolicy: Never.)
+          image: us-west1-docker.pkg.dev/secret-imprint-498300-b3/mandelbrot-repo/mandelbrot:v1
+          imagePullPolicy: Always
 
           ports:
             # The port the application listens on inside the container
