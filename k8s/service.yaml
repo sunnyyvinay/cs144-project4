@@ -4,7 +4,7 @@ metadata:
   name: mandelbrot-service
 spec:
   # TODO: Set the service type that provisions an external IP.
-  type: REPLACE_ME
+  type: LoadBalancer
 
   selector:
     app: mandelbrot
@@ -12,5 +12,5 @@ spec:
   ports:
     # TODO: Set the external port (what clients connect to) and
     # the target port (what your container listens on).
-    - port: REPLACE_ME
-      targetPort: REPLACE_ME
+    - port: 80
+      targetPort: 3000
