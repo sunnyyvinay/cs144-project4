@@ -171,6 +171,43 @@ Run your k6 load test (`k6 run k8s/loadtest.js`) and paste the summary output be
 **k6 output:**
 
 ```
+  █ TOTAL RESULTS
+
+    checks_total.......: 129536  4317.424329/s
+    checks_succeeded...: 100.00% 129536 out of 129536
+    checks_failed......: 0.00%   0 out of 129536
+
+    ✓ status is 200
+    ✓ body has hostname
+
+    HTTP
+    http_req_duration..............: avg=9.1ms  min=791.34µs med=3.82ms max=218.08ms p(90)=24.01ms p(95)=55.39ms
+    http_req_failed................: 0.00%  0 out of 64768
+    http_reqs......................: 64768  2158.712165/s
+
+    EXECUTION
+    iteration_duration.............: avg=9.24ms min=884.86µs med=3.95ms max=218.18ms p(90)=24.14ms p(95)=55.53ms
+    iterations.....................: 64768  2158.712165/s
+    vus............................: 20     min=20         max=20
+
+    NETWORK
+    data_received..................: 19 MB  648 kB/s
+    data_sent......................: 4.9 MB 162 kB/s
 ```
 
-**Answer:**
+**Answer:** The average response time was **9.1 ms** (`http_req_duration` avg) and the test
+completed **64,768 requests** over 30 s (~2,159 req/s), with a 0% failure rate and all
+129,536 checks passing.
+
+Scaling from 3 to 6 replicas would **not** meaningfully decrease the average response time
+here. Adding replicas only helps when the existing pods are the bottleneck — i.e. saturated
+on CPU so requests queue behind busy workers. That isn't the case for this workload: `/health`
+is a trivial handler (read hostname, return a tiny JSON), so each request is served in a few
+milliseconds and the pods sit far below their CPU `limits` (you can confirm with
+`kubectl top pods` — usage stays low during the test). With only 20 virtual users, 3 pods
+already have plenty of spare capacity, so the ~9 ms latency is dominated by network round-trip
+and load-balancer overhead, not pod processing. Doubling the replicas just adds idle capacity;
+it raises the *throughput ceiling* (how many concurrent requests you could handle before
+saturating) but leaves per-request latency essentially unchanged. Latency would only drop from
+more replicas if you also drove far more load — enough that 3 pods became CPU-bound and started
+queueing.

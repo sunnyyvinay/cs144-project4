@@ -48,3 +48,28 @@ readout.
 - **Added `.dockerignore`** excluding `node_modules`, `emsdk`, `.git`, `.claude`,
   `wasm/` source, and `*.md` — shrinks build context and image (the compiled WASM
   already lives in `public/`, so the `wasm/` source isn't needed at runtime).
+
+## Part 3: Kubernetes / GKE
+
+- **Artifact Registry image URL:**
+  `us-west1-docker.pkg.dev/secret-imprint-498300-b3/mandelbrot-repo/mandelbrot:v1`
+- **Load balancing confirmed:** repeated `curl http://<EXTERNAL-IP>/health` requests
+  returned changing `hostname` values across the 3 pods, so the LoadBalancer is
+  distributing traffic across replicas as expected.
+
+### Part 3F: Load test (k6)
+
+20 VUs / 30 s → **64,768 total requests, avg 9.1 ms response time, 0% error rate.**
+
+## Notes for grading
+
+- **Resource requests were lowered to fit e2-small nodes.** `deployment.yaml` uses
+  `cpu: 100m` / `memory: 128Mi` (down from the skeleton's `250m` / `256Mi`). With the
+  original values, 2 of 3 replicas stayed `Pending` ("Insufficient cpu") because GKE's
+  system DaemonSets consume most of the e2-small CPU. At `100m` all 3 schedule across
+  the 2 nodes.
+- **`k8s/deployment.yaml` is set for GKE** (Artifact Registry image +
+  `imagePullPolicy: Always`). For local minikube testing it was `image: mandelbrot` +
+  `imagePullPolicy: Never`.
+- **`k8s/loadtest.js` has a hard-coded `BASE_URL`** (`http://8.231.200.227`) — the
+  external IP of the LoadBalancer at test time. That IP no longer exists after cleanup.
